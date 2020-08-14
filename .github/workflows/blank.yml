@@ -16,4 +16,5 @@ jobs:
         function_name: slackbot
         source: lambda_function.py
         dry_run: true
+        publish: false
 
