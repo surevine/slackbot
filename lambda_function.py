@@ -35,13 +35,17 @@ def lambda_handler(event, context):
             'statusCode': 400,
             "Response" : "Error, required information missing"
         }
-        
-    text = qs["text"]
-    text = text[0]
-    split_command = text.lower().split()
-    operation = split_command[0]
-    target = split_command[1]
-
+    try:
+        text = qs["text"]
+        text = text[0]
+        split_command = text.lower().split()
+        operation = split_command[0]
+        target = split_command[1]
+    except:
+        return {
+            "statusCode" : 400,
+            "Response" : "Error, required information missing"
+        }
     def start(target):
         try:
             ec2.start_instances(InstanceIds = [instances[target]])
@@ -52,7 +56,6 @@ def lambda_handler(event, context):
                 'Response': "Service not found"
             }
 
-    
     def stop(target):
         try:
             ec2.stop_instances(InstanceIds = [instances[target]])
@@ -78,4 +81,3 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'body': json.dumps(body)
     }
-
