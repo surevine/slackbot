@@ -3,6 +3,8 @@ import os
 import logging
 import urllib
 import boto3
+import time
+import hashlib, hmac
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -29,7 +31,15 @@ def lambda_handler(event, context):
     logger.info(os.environ)
     logger.info('## EVENT')
     logger.info(json.dumps(event))
-    
+
+    is_Auth = auth(event)
+    if is_Auth == False:
+        body = { "Response" : "Non-Authoritive access" }
+        return {
+            'statusCode' : 401,
+            'body': json.dumps(body)
+        }
+        
     try:    
         command = get_command(event)
         operation = command[0]
@@ -47,10 +57,33 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'body': json.dumps(body)
     }
+    
+def auth(event):
 
-def get_command(event):
     if "body" not in event:
         raise Exception("Error, required information missing")
+        
+    slack_signature = event["headers"]["X-Slack-Signature"]
+    slack_signing_secret = os.environ["SLACK_SIGNING_SECRET"].encode('utf-8')
+    timestamp = event["headers"]['X-Slack-Request-Timestamp']
+    body = event['body'].encode('utf-8')
+    
+    five_minutes = 60 * 5
+    if (time.time() - int(timestamp)) > five_minutes:
+        return False
+    
+    timestamp = timestamp.encode('utf-8')
+    base = 'v0:%s:%s' % (timestamp.decode('utf-8'), body.decode('utf-8'))
+    
+    computed = hmac.new(slack_signing_secret, base.encode('utf-8'),
+                    digestmod=hashlib.sha256).hexdigest()
+    computed_signature = 'v0=%s' % (computed,)
+
+    return hmac.compare(my_signature, slack_signature)
+    
+
+
+def get_command(event):
         
     body = event["body"]
     qs = urllib.parse.parse_qs(body)
