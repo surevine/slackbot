@@ -3,6 +3,8 @@ import os
 import logging
 import urllib
 import boto3
+import time
+import hashlib, hmac
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -13,11 +15,9 @@ DATABASE = "i-081ffee71f6238ad0"
 AUTH_SERVICE = "i-0e690e2ee6448f38a"
 
 groups = {
-        "confluence": CONFLUENCE,
-        "vpn": VPN,
-        "git": GIT,
-        "database": DATABASE,
-        "auth service": AUTH_SERVICE
+        "confluence": [DATABASE, AUTH_SERVICE, VPN, CONFLUENCE],
+        "vpn": [VPN],
+        "git": [VPN, DATABASE, GIT]
     }
     
 region = "eu-west-2"
@@ -29,6 +29,13 @@ def lambda_handler(event, context):
     logger.info(os.environ)
     logger.info('## EVENT')
     logger.info(json.dumps(event))
+
+    if not sent_from_surevine_slack(event):
+        body = { "Response" : "Non-Authoritive access" }
+        return {
+            'statusCode' : 401,
+            'body': json.dumps(body)
+        }
     
     try:    
         command = get_command(event)
@@ -47,10 +54,31 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'body': json.dumps(body)
     }
+    
+def sent_from_surevine_slack(event):
 
-def get_command(event):
     if "body" not in event:
         raise Exception("Error, required information missing")
+        
+    slack_signature = event["headers"]["X-Slack-Signature"]
+    slack_signing_secret = os.environ["SLACK_SIGNING_SECRET"].encode('utf-8')
+    timestamp = event["headers"]['X-Slack-Request-Timestamp']
+    body = event['body'].encode('utf-8')
+    
+    five_minutes = 60 * 5
+    if (time.time() - int(timestamp)) > five_minutes:
+        return False
+    
+    timestamp = timestamp.encode('utf-8')
+    base = 'v0:%s:%s' % (timestamp.decode('utf-8'), body.decode('utf-8'))
+    
+    computed = hmac.new(slack_signing_secret, base.encode('utf-8'),
+                    digestmod=hashlib.sha256).hexdigest()
+    computed_signature = 'v0=%s' % (computed,)
+
+    return hmac.compare_digest(computed_signature, slack_signature)
+
+def get_command(event):
         
     body = event["body"]
     qs = urllib.parse.parse_qs(body)
@@ -61,7 +89,8 @@ def get_command(event):
     try:
         text = qs["text"]
         text = text[0]
-        split_command = text.lower().split()
+        split_command = text.lower().split(' ', 1)
+        print(split_command)
     except:
         raise Exception("Error, required information missing")
         
@@ -81,14 +110,16 @@ def perform_operation(operation, target):
     
 def start(target):
     try:
-        ec2.start_instances(InstanceIds = [groups[target]])
+        ec2.start_instances(InstanceIds = groups[target])
         return "Starting " + target + "..."
-    except:
-        raise Exception("Service not found")
+    except Exception as e:
+        logger.error(e)
+        raise Exception("failed to start")
+        
     
 def stop(target):
     try:
-        ec2.stop_instances(InstanceIds = [groups[target]])
+        ec2.stop_instances(InstanceIds = groups[target])
         return "Stopping " + target + "..."
     except:
         raise Exception("Service not found")
