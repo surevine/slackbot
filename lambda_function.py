@@ -15,11 +15,9 @@ DATABASE = "i-081ffee71f6238ad0"
 AUTH_SERVICE = "i-0e690e2ee6448f38a"
 
 groups = {
-        "confluence": CONFLUENCE,
-        "vpn": VPN,
-        "git": GIT,
-        "database": DATABASE,
-        "auth service": AUTH_SERVICE
+        "confluence": [DATABASE, AUTH_SERVICE, VPN, CONFLUENCE],
+        "vpn": [VPN],
+        "git": [VPN, DATABASE, GIT]
     }
     
 region = "eu-west-2"
@@ -32,14 +30,13 @@ def lambda_handler(event, context):
     logger.info('## EVENT')
     logger.info(json.dumps(event))
 
-    is_Auth = auth(event)
-    if is_Auth == False:
+    if not sent_from_surevine_slack(event):
         body = { "Response" : "Non-Authoritive access" }
         return {
             'statusCode' : 401,
             'body': json.dumps(body)
         }
-        
+    
     try:    
         command = get_command(event)
         operation = command[0]
@@ -58,7 +55,7 @@ def lambda_handler(event, context):
         'body': json.dumps(body)
     }
     
-def auth(event):
+def sent_from_surevine_slack(event):
 
     if "body" not in event:
         raise Exception("Error, required information missing")
@@ -79,9 +76,7 @@ def auth(event):
                     digestmod=hashlib.sha256).hexdigest()
     computed_signature = 'v0=%s' % (computed,)
 
-    return hmac.compare(my_signature, slack_signature)
-    
-
+    return hmac.compare_digest(computed_signature, slack_signature)
 
 def get_command(event):
         
@@ -94,7 +89,8 @@ def get_command(event):
     try:
         text = qs["text"]
         text = text[0]
-        split_command = text.lower().split()
+        split_command = text.lower().split(' ', 1)
+        print(split_command)
     except:
         raise Exception("Error, required information missing")
         
@@ -114,14 +110,16 @@ def perform_operation(operation, target):
     
 def start(target):
     try:
-        ec2.start_instances(InstanceIds = [groups[target]])
+        ec2.start_instances(InstanceIds = groups[target])
         return "Starting " + target + "..."
-    except:
-        raise Exception("Service not found")
+    except Exception as e:
+        logger.error(e)
+        raise Exception("failed to start")
+        
     
 def stop(target):
     try:
-        ec2.stop_instances(InstanceIds = [groups[target]])
+        ec2.stop_instances(InstanceIds = groups[target])
         return "Stopping " + target + "..."
     except:
         raise Exception("Service not found")
