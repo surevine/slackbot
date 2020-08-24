@@ -42,3 +42,6 @@ eg.
 	        'statusCode': 200,
 	        'body': json.dumps(body)
 	    }
+
+## Don't forget to document things!
+Don't forget to update this readme or other docs with not what you did (we can all look at code diffs) but why you did it!
