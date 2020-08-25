@@ -31,8 +31,11 @@ def lambda_handler(event, context):
     logger.info('## EVENT')
     logger.info(json.dumps(event))
     
+    operation = event["operation"]
+    target = event["target"]
+
     try:    
-        response = perform_operation("start", "git")
+        response = perform_operation(operation, target)
     except Exception as e:
         body = { "Response" : str(e) }
         return {
