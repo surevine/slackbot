@@ -5,6 +5,8 @@ import urllib
 import boto3
 import time
 import hashlib, hmac
+import botocore.vendored.requests as requests
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -22,37 +24,55 @@ def lambda_handler(event, context):
         }
     
     try:    
+        send_slack_response(get_response_url(event))
+
         command = get_command(event)
         operation = command[0]
         target = command[1]
         
-        lambda_client = boto3.client('lambda')
-
-   
-        inputParams = {
-            "operation"   : operation,
-            "target"      : target
-        }
-        response = lambda_client.invoke(
-            FunctionName = os.environ["EC2_CONTROLLER_FUNCTION_ARN"],
-            InvocationType = 'RequestResponse',
-            Payload = json.dumps(inputParams)
-        )
-        response = json.load(response["Payload"])
+        invoke_lambda(operation, target)
 
     except Exception as e:
-        body = { "Response" : str(e) }
-        return {
-            'statusCode': 200,
-            "body" : json.dumps(body)
-        }
-    
-    body = { "Response" : response }
-    return {
-        'statusCode': 200,
-        'body': json.dumps(body)
+        logger.error(e)
+        return { 'statusCode': 500 }
+
+    return { 'statusCode': 200 }
+
+
+def invoke_lambda(operation, target):
+    lambda_client = boto3.client('lambda')
+
+    inputParams = {
+        "operation"   : operation,
+        "target"      : target
     }
-    
+    lambda_client.invoke(
+        FunctionName = os.environ["EC2_CONTROLLER_FUNCTION_ARN"],
+        InvocationType='Event',
+        Payload = json.dumps(inputParams)
+    )    
+
+def send_slack_response(response_url):
+
+    response_body = { 
+        "text": "*Thanks for your request, I am on it.*",
+        "type": "mrkdwn"
+    }
+
+    headers = {
+       'content-type': 'application/json'
+    }
+
+    try: 
+        r = requests.post(response_url, data=json.dumps(response_body), headers=headers)
+        status_code = r.status_code
+        print(json.dumps(response_body))
+        print(status_code)
+        print(r.text)
+    except Exception as e:
+        print(e)
+
+
 def sent_from_surevine_slack(event):
 
     if "body" not in event:
@@ -77,7 +97,7 @@ def sent_from_surevine_slack(event):
     return hmac.compare_digest(computed_signature, slack_signature)
 
 def get_command(event):
-        
+
     body = event["body"]
     qs = urllib.parse.parse_qs(body)
     
@@ -96,3 +116,15 @@ def get_command(event):
         raise Exception("Error, requires two words")
         
     return split_command
+
+
+
+def get_response_url(event):
+        
+    body = event["body"]
+    qs = urllib.parse.parse_qs(body)
+    
+    if "response_url" not in qs:
+        raise Exception("Error, response URL missing")
+
+    return qs["response_url"][0]
