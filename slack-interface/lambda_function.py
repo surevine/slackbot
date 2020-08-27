@@ -29,7 +29,7 @@ def lambda_handler(event, context):
         command = get_command(event)
 
         if not command:
-            send_slack_response(response_url, "*Please specify a command. e.g. `start confluence`*")
+            send_slack_response(response_url, "*Please specify a command. e.g. `/surevinebot start confluence`*")
         elif command[0] not in ['start', 'stop']:
             send_slack_response(response_url, "*Command must be _start_ or _stop_.*")
         elif len(command) != 2:
