@@ -49,7 +49,7 @@ def get_name_filter(name_list):
         'Name':'tag:Name', 
         'Values': name_list}]
     
-
+   
 def perform_operation(operation, instance):
     
     try:
