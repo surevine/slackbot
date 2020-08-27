@@ -22,19 +22,29 @@ def lambda_handler(event, context):
             'statusCode' : 401,
             'body': json.dumps(body)
         }
-    
-    try:    
-        send_slack_response(get_response_url(event))
 
+    response_url = get_response_url(event)
+
+    try:    
         command = get_command(event)
-        operation = command[0]
-        target = command[1]
-        
-        invoke_lambda(operation, target)
+
+        if not command:
+            send_slack_response(response_url, "*Please specify a command. [USAGE HERE]*")
+        elif command[0] not in ['start', 'stop']:
+            send_slack_response(response_url, "*Command must be _start_ or _stop_.*")
+        elif len(command) != 2:
+            send_slack_response(response_url, "*Please specify a service.*")
+        else:
+            operation = command[0]
+            target = command[1]
+    
+            send_slack_response(response_url, "*Thanks for your request, I am on it. 👍🏻 *")
+            invoke_lambda(operation, target)
 
     except Exception as e:
         logger.error(e)
-        return { 'statusCode': 500 }
+        send_slack_response(response_url, "*" + str(e) +  "*")
+
 
     return { 'statusCode': 200 }
 
@@ -52,10 +62,10 @@ def invoke_lambda(operation, target):
         Payload = json.dumps(inputParams)
     )    
 
-def send_slack_response(response_url):
+def send_slack_response(response_url, response_text):
 
     response_body = { 
-        "text": "*Thanks for your request, I am on it.*",
+        "text": response_text,
         "type": "mrkdwn"
     }
 
@@ -102,21 +112,17 @@ def get_command(event):
     qs = urllib.parse.parse_qs(body)
     
     if "text" not in qs:
-        raise Exception("Error, required information missing")
-    
-    try:
-        text = qs["text"]
-        text = text[0]
-        split_command = text.lower().split(' ', 1)
-        print(split_command)
-    except:
-        raise Exception("Error, required information missing")
-        
-    if len(split_command) != 2:
-        raise Exception("Error, requires two words")
-        
-    return split_command
+        return None
 
+    text = qs["text"]
+
+    if not text:
+        return None
+
+    text = text[0]
+    split_command = text.lower().split(' ', 1)
+
+    return split_command
 
 
 def get_response_url(event):
