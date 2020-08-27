@@ -34,3 +34,19 @@ jobs:
         dry_run: false
         publish: true
 
+  deploy-ec2-scheduler:
+    name: deploy ec2 scheduler function
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: AWS Lambda Deploy
+      uses: appleboy/lambda-action@master
+      with:
+        aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws_region: ${{ secrets.AWS_REGION }}
+        function_name: ec2-scheduler
+        source: "ec2-scheduler/lambda_function.py"
+        dry_run: false
+        publish: true
+
