@@ -43,5 +43,16 @@ eg.
 	        'body': json.dumps(body)
 	    }
 
-## Don't forget to document things!
-Don't forget to update this readme or other docs with not what you did (we can all look at code diffs) but why you did it!
+## Update:
+Slackbot authenticates requests to verify that they derive from our slack (using standard slack auth methods), relay requests after 5 minutes are denied access, preventing a relay attack.
+
+Text from request is checked for valid command (currently "start", "stop", and a service name) and a valid command is not present, a fitting error message/ user info is returned.
+
+Instances are turned on/off through EC2 with the python library boto3. If an instance needs another to be on for it to work, then that instance (given it's stated in the tags under "dependants") will also be turned on.
+
+A cloudwatch scheduler event triggers the turning on/off of instances with the "working" tag and sends a message to the general chat regularly at 8 (am/pm).
+
+## Future improvements:
+Feature allowing users to delay instance shutdown and/or warn of an impending shutdown, via a slack message. FYI this may require a "que" between scheduler and ec2_scheduler lambda.
+
+A feature that would mean if someone else is using a service that depends on another (the VPN for example) then it won’t shut down if another person tells it to as it is still in use.
